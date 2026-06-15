@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Wallet } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
@@ -12,8 +13,11 @@ import { formatCurrency, formatDate, statusBadge } from '../../utils/formatters'
 import Button from '../../components/ui/Button';
 
 export default function PurchaseInvoicesPage() {
+  const navigate = useNavigate();
   const crud = useCrudTable(API_ENDPOINTS.PURCHASE.INVOICES, API_ENDPOINTS.PURCHASE.INVOICE_DETAIL);
   const [invoiceModal, setInvoiceModal] = useState(false);
+
+  const getOutstanding = (row) => parseFloat(row.total) - parseFloat(row.paid_amount || 0);
 
   const handlePost = async (row) => {
     if (!window.confirm(`Post faktur ${row.invoice_no}?`)) return;
@@ -22,6 +26,15 @@ export default function PurchaseInvoicesPage() {
       toast.success('Faktur berhasil diposting');
       crud.refresh();
     } catch (err) { toast.error(err.response?.data?.message); }
+  };
+
+  const handlePay = (row) => {
+    const outstanding = getOutstanding(row);
+    if (outstanding <= 0) {
+      toast.error('Faktur ini sudah lunas');
+      return;
+    }
+    navigate('/purchase/payments', { state: { fromInvoice: { id: row.id } } });
   };
 
   const columns = [
@@ -36,8 +49,17 @@ export default function PurchaseInvoicesPage() {
   return (
     <div>
       <PageHeader title="Faktur Pembelian" onAdd={() => setInvoiceModal(true)} addLabel="Buat Faktur" search={crud.search} onSearchChange={crud.setSearch} />
-      <DataTable columns={columns} data={crud.data} loading={crud.loading} actions={(row) => row.status === 'draft' && (
-        <Button size="sm" variant="success" onClick={() => handlePost(row)}><CheckCircle size={14} /> Post</Button>
+      <DataTable columns={columns} data={crud.data} loading={crud.loading} actions={(row) => (
+        <div className="flex items-center gap-1 justify-end">
+          {row.status === 'draft' && (
+            <Button size="sm" variant="success" onClick={() => handlePost(row)}><CheckCircle size={14} /> Post</Button>
+          )}
+          {['posted', 'partial'].includes(row.status) && getOutstanding(row) > 0 && (
+            <Button size="sm" variant="primary" onClick={() => handlePay(row)}>
+              <Wallet size={14} /> Bayar
+            </Button>
+          )}
+        </div>
       )} />
       <Pagination pagination={crud.pagination} onPageChange={(p) => crud.setPagination((x) => ({ ...x, page: p }))} onLimitChange={(l) => crud.setPagination((x) => ({ ...x, limit: l, page: 1 }))} />
       <InvoiceFormModal open={invoiceModal} onClose={() => setInvoiceModal(false)} type="purchase" saving={crud.saving}

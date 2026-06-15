@@ -47,6 +47,30 @@ const updateCashBalance = async (conn, cashBankId, amount, type) => {
   );
 };
 
+const reverseJournalByReference = async (conn, companyId, userId, referenceType, referenceId) => {
+  const [journals] = await conn.query(
+    `SELECT * FROM journal_entries WHERE company_id = ? AND reference_type = ? AND reference_id = ? AND status = 'posted'`,
+    [companyId, referenceType, referenceId]
+  );
+
+  for (const journal of journals) {
+    const [lines] = await conn.query('SELECT * FROM journal_entry_lines WHERE journal_entry_id = ?', [journal.id]);
+    await createJournal(conn, companyId, userId, {
+      date: journal.journal_date,
+      description: `Pembalikan: ${journal.description}`,
+      referenceType: `${referenceType}_reversal`,
+      referenceId: journal.id,
+      lines: lines.map((l) => ({
+        coa_id: l.coa_id,
+        debit: l.credit,
+        credit: l.debit,
+        description: l.description,
+      })),
+    });
+    await conn.query('UPDATE journal_entries SET status = ? WHERE id = ?', ['reversed', journal.id]);
+  }
+};
+
 const journalPurchaseInvoice = async (conn, companyId, userId, invoice) => {
   const inventoryCoa = await getCoaByCode(conn, companyId, '1-3001');
   const payableCoa = await getCoaByCode(conn, companyId, '2-1001');
@@ -296,6 +320,7 @@ const journalSalesDownPayment = async (conn, companyId, userId, dp, cashBankId) 
 
 module.exports = {
   createJournal,
+  reverseJournalByReference,
   journalPurchaseInvoice,
   journalPurchasePayment,
   journalSalesInvoice,

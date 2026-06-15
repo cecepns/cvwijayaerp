@@ -11,6 +11,38 @@ const { notifyByRole } = require('../services/notificationService');
 
 const router = express.Router();
 
+const validateSalesReceiptAllocations = async (conn, allocations, receiptAmount) => {
+  if (!allocations?.length) throw new Error('Pilih minimal satu faktur untuk dialokasikan');
+  const amount = parseFloat(receiptAmount);
+  if (!amount || amount <= 0) throw new Error('Nominal penerimaan harus lebih dari 0');
+
+  let totalAllocated = 0;
+  for (const alloc of allocations) {
+    const allocAmount = parseFloat(alloc.amount);
+    if (!allocAmount || allocAmount <= 0) throw new Error('Nominal alokasi faktur tidak valid');
+
+    const [invoices] = await conn.query(
+      'SELECT id, invoice_no, total, paid_amount, status FROM sales_invoices WHERE id = ?',
+      [alloc.invoice_id]
+    );
+    if (!invoices.length) throw new Error('Faktur tidak ditemukan');
+    const inv = invoices[0];
+    if (!['posted', 'partial'].includes(inv.status)) {
+      throw new Error(`Faktur ${inv.invoice_no} tidak dapat dibayar`);
+    }
+
+    const outstanding = parseFloat(inv.total) - parseFloat(inv.paid_amount);
+    if (allocAmount > outstanding + 0.01) {
+      throw new Error(`Nominal alokasi faktur ${inv.invoice_no} melebihi sisa tagihan (${outstanding.toLocaleString('id-ID')})`);
+    }
+    totalAllocated += allocAmount;
+  }
+
+  if (totalAllocated > amount + 0.01) {
+    throw new Error('Total alokasi faktur melebihi nominal penerimaan');
+  }
+};
+
 const getInvoiceItems = async (invoiceId) => {
   const [items] = await pool.query(
     `SELECT sii.*, p.name AS product_name, p.sku, p.type FROM sales_invoice_items sii
@@ -65,12 +97,18 @@ router.post('/down-payments/:id/post', auth, async (req, res) => {
 
 router.get('/invoices', auth, async (req, res) => {
   const { page, limit, offset, search } = getPagination(req.query);
-  const { clause, params } = buildSearchWhere(['si.invoice_no'], search);
-  const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM sales_invoices si WHERE si.company_id=?${clause}`, [req.user.company_id, ...params]);
+  const customerId = req.query.customer_id;
+  const status = req.query.status;
+  let extraClause = '';
+  const params = [req.user.company_id];
+  if (customerId) { extraClause += ' AND si.customer_id = ?'; params.push(customerId); }
+  if (status) { extraClause += ' AND si.status = ?'; params.push(status); }
+  const { clause, params: sp } = buildSearchWhere(['si.invoice_no'], search, params.length + 1);
+  const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM sales_invoices si WHERE si.company_id=?${extraClause}${clause}`, [...params, ...sp]);
   const [rows] = await pool.query(
     `SELECT si.*, c.name AS customer_name FROM sales_invoices si JOIN customers c ON c.id=si.customer_id
-     WHERE si.company_id=?${clause} ORDER BY si.created_at DESC LIMIT ? OFFSET ?`,
-    [req.user.company_id, ...params, limit, offset]
+     WHERE si.company_id=?${extraClause}${clause} ORDER BY si.created_at DESC LIMIT ? OFFSET ?`,
+    [...params, ...sp, limit, offset]
   );
   return paginated(res, rows, { page, limit, total, totalPages: Math.ceil(total / limit) });
 });
@@ -183,6 +221,8 @@ router.post('/receipts', auth, async (req, res) => {
   try {
     await conn.beginTransaction();
     const b = req.body;
+    await validateSalesReceiptAllocations(conn, b.allocations, b.amount);
+
     const receiptNo = await generateNumber(req.user.company_id, 'sales_receipt', conn);
     const [r] = await conn.query(
       `INSERT INTO sales_receipts (company_id, receipt_no, customer_id, receipt_date, cash_bank_id, amount, notes, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, 'posted', ?)`,

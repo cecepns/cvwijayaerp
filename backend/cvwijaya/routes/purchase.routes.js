@@ -13,6 +13,38 @@ const { notifyByRole } = require('../services/notificationService');
 
 const router = express.Router();
 
+const validatePurchasePaymentAllocations = async (conn, allocations, paymentAmount) => {
+  if (!allocations?.length) throw new Error('Pilih minimal satu faktur untuk dialokasikan');
+  const amount = parseFloat(paymentAmount);
+  if (!amount || amount <= 0) throw new Error('Nominal pembayaran harus lebih dari 0');
+
+  let totalAllocated = 0;
+  for (const alloc of allocations) {
+    const allocAmount = parseFloat(alloc.amount);
+    if (!allocAmount || allocAmount <= 0) throw new Error('Nominal alokasi faktur tidak valid');
+
+    const [invoices] = await conn.query(
+      'SELECT id, invoice_no, total, paid_amount, status FROM purchase_invoices WHERE id = ?',
+      [alloc.invoice_id]
+    );
+    if (!invoices.length) throw new Error('Faktur tidak ditemukan');
+    const inv = invoices[0];
+    if (!['posted', 'partial'].includes(inv.status)) {
+      throw new Error(`Faktur ${inv.invoice_no} tidak dapat dibayar`);
+    }
+
+    const outstanding = parseFloat(inv.total) - parseFloat(inv.paid_amount);
+    if (allocAmount > outstanding + 0.01) {
+      throw new Error(`Nominal alokasi faktur ${inv.invoice_no} melebihi sisa tagihan (${outstanding.toLocaleString('id-ID')})`);
+    }
+    totalAllocated += allocAmount;
+  }
+
+  if (totalAllocated > amount + 0.01) {
+    throw new Error('Total alokasi faktur melebihi nominal pembayaran');
+  }
+};
+
 const getInvoiceItems = async (invoiceId) => {
   const [items] = await pool.query(
     `SELECT pii.*, p.name AS product_name, p.sku FROM purchase_invoice_items pii
@@ -190,6 +222,8 @@ router.post('/payments', auth, async (req, res) => {
   try {
     await conn.beginTransaction();
     const b = req.body;
+    await validatePurchasePaymentAllocations(conn, b.allocations, b.amount);
+
     const paymentNo = await generateNumber(req.user.company_id, 'purchase_payment', conn);
     const [r] = await conn.query(
       `INSERT INTO purchase_payments (company_id, payment_no, supplier_id, payment_date, cash_bank_id, amount, notes, status, created_by)

@@ -70,6 +70,7 @@ export const API_ENDPOINTS = {
   CASH: {
     RECEIPTS: '/cash/receipts',
     PAYMENTS: '/cash/payments',
+    PAYMENT_DETAIL: (id) => `/cash/payments/${id}`,
     TRANSFERS: '/cash/transfers',
   },
   HRD: {

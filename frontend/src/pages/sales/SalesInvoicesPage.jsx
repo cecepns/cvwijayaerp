@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Wallet } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
@@ -12,8 +13,20 @@ import { API_ENDPOINTS } from '../../utils/endpoints';
 import { formatCurrency, formatDate, statusBadge } from '../../utils/formatters';
 
 export default function SalesInvoicesPage() {
+  const navigate = useNavigate();
   const crud = useCrudTable(API_ENDPOINTS.SALES.INVOICES, API_ENDPOINTS.SALES.INVOICE_DETAIL);
   const [invoiceModal, setInvoiceModal] = useState(false);
+
+  const getOutstanding = (row) => parseFloat(row.total) - parseFloat(row.paid_amount || 0);
+
+  const handlePay = (row) => {
+    const outstanding = getOutstanding(row);
+    if (outstanding <= 0) {
+      toast.error('Faktur ini sudah lunas');
+      return;
+    }
+    navigate('/sales/receipts', { state: { fromInvoice: { id: row.id } } });
+  };
 
   const columns = [
     { key: 'invoice_no', label: 'No. Faktur' },
@@ -27,10 +40,19 @@ export default function SalesInvoicesPage() {
   return (
     <div>
       <PageHeader title="Faktur Penjualan" onAdd={() => setInvoiceModal(true)} addLabel="Buat Faktur" search={crud.search} onSearchChange={crud.setSearch} />
-      <DataTable columns={columns} data={crud.data} loading={crud.loading} actions={(row) => row.status === 'draft' && (
-        <Button size="sm" variant="success" onClick={async () => { await post(API_ENDPOINTS.SALES.INVOICE_POST(row.id)); toast.success('Faktur diposting'); crud.refresh(); }}>
-          <CheckCircle size={14} /> Post
-        </Button>
+      <DataTable columns={columns} data={crud.data} loading={crud.loading} actions={(row) => (
+        <div className="flex items-center gap-1 justify-end">
+          {row.status === 'draft' && (
+            <Button size="sm" variant="success" onClick={async () => { await post(API_ENDPOINTS.SALES.INVOICE_POST(row.id)); toast.success('Faktur diposting'); crud.refresh(); }}>
+              <CheckCircle size={14} /> Post
+            </Button>
+          )}
+          {['posted', 'partial'].includes(row.status) && getOutstanding(row) > 0 && (
+            <Button size="sm" variant="primary" onClick={() => handlePay(row)}>
+              <Wallet size={14} /> Bayar
+            </Button>
+          )}
+        </div>
       )} />
       <Pagination pagination={crud.pagination} onPageChange={(p) => crud.setPagination((x) => ({ ...x, page: p }))} onLimitChange={(l) => crud.setPagination((x) => ({ ...x, limit: l, page: 1 }))} />
       <InvoiceFormModal open={invoiceModal} onClose={() => setInvoiceModal(false)} type="sales"
