@@ -23,6 +23,7 @@ export const menuGroups = [
   {
     label: 'HRD',
     items: [
+      { path: '/hrd/kasbon', label: 'Kasbon Rokok', icon: CreditCard },
       { path: '/master/employees', label: 'Data Karyawan', icon: Users },
       { path: '/hrd/advances', label: 'Transaksi Kasbon', icon: CreditCard },
       { path: '/hrd/reports', label: 'Laporan Kasbon', icon: BarChart3 },

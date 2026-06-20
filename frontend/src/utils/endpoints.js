@@ -80,6 +80,12 @@ export const API_ENDPOINTS = {
     ADVANCE_DISBURSE: (id) => `/hrd/advances/${id}/disburse`,
     ADVANCE_PAYMENTS: (id) => `/hrd/advances/${id}/payments`,
     REPORTS: '/hrd/advances/reports',
+    KASBON_ROKOK: {
+      ITEMS: '/hrd/kasbon-rokok/items',
+      ITEM_DETAIL: (id) => `/hrd/kasbon-rokok/items/${id}`,
+      TRANSACTIONS: '/hrd/kasbon-rokok/transactions',
+      REPORTS: '/hrd/kasbon-rokok/reports',
+    },
   },
   ACCOUNTING: {
     JOURNALS: '/accounting/journals',

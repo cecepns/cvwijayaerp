@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CheckCircle, Wallet } from 'lucide-react';
+import { CheckCircle, Pencil, Wallet } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
 import InvoiceFormModal from '../../components/forms/InvoiceFormModal';
 import { useCrudTable } from '../../hooks/useCrudTable';
-import { post } from '../../utils/request';
+import { post, put } from '../../utils/request';
 import { API_ENDPOINTS } from '../../utils/endpoints';
 import { formatCurrency, formatDate, statusBadge } from '../../utils/formatters';
 import Button from '../../components/ui/Button';
@@ -16,8 +16,33 @@ export default function PurchaseInvoicesPage() {
   const navigate = useNavigate();
   const crud = useCrudTable(API_ENDPOINTS.PURCHASE.INVOICES, API_ENDPOINTS.PURCHASE.INVOICE_DETAIL);
   const [invoiceModal, setInvoiceModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const getOutstanding = (row) => parseFloat(row.total) - parseFloat(row.paid_amount || 0);
+
+  const openCreate = () => { setEditing(null); setInvoiceModal(true); };
+  const openEdit = (row) => { setEditing(row); setInvoiceModal(true); };
+  const closeModal = () => { setInvoiceModal(false); setEditing(null); };
+
+  const handleSave = async (form) => {
+    setSaving(true);
+    try {
+      if (editing) {
+        await put(API_ENDPOINTS.PURCHASE.INVOICE_DETAIL(editing.id), form);
+        toast.success('Faktur berhasil diperbarui');
+      } else {
+        await post(API_ENDPOINTS.PURCHASE.INVOICES, form);
+        toast.success('Faktur dibuat');
+      }
+      closeModal();
+      crud.refresh();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal menyimpan faktur');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handlePost = async (row) => {
     if (!window.confirm(`Post faktur ${row.invoice_no}?`)) return;
@@ -48,11 +73,16 @@ export default function PurchaseInvoicesPage() {
 
   return (
     <div>
-      <PageHeader title="Faktur Pembelian" onAdd={() => setInvoiceModal(true)} addLabel="Buat Faktur" search={crud.search} onSearchChange={crud.setSearch} />
+      <PageHeader title="Faktur Pembelian" onAdd={openCreate} addLabel="Buat Faktur" search={crud.search} onSearchChange={crud.setSearch} />
       <DataTable columns={columns} data={crud.data} loading={crud.loading} actions={(row) => (
         <div className="flex items-center gap-1 justify-end">
           {row.status === 'draft' && (
-            <Button size="sm" variant="success" onClick={() => handlePost(row)}><CheckCircle size={14} /> Post</Button>
+            <>
+              <Button size="sm" variant="secondary" onClick={() => openEdit(row)} title="Edit">
+                <Pencil size={14} /> Edit
+              </Button>
+              <Button size="sm" variant="success" onClick={() => handlePost(row)}><CheckCircle size={14} /> Post</Button>
+            </>
           )}
           {['posted', 'partial'].includes(row.status) && getOutstanding(row) > 0 && (
             <Button size="sm" variant="primary" onClick={() => handlePay(row)}>
@@ -62,8 +92,7 @@ export default function PurchaseInvoicesPage() {
         </div>
       )} />
       <Pagination pagination={crud.pagination} onPageChange={(p) => crud.setPagination((x) => ({ ...x, page: p }))} onLimitChange={(l) => crud.setPagination((x) => ({ ...x, limit: l, page: 1 }))} />
-      <InvoiceFormModal open={invoiceModal} onClose={() => setInvoiceModal(false)} type="purchase" saving={crud.saving}
-        onSave={async (form) => { await post(API_ENDPOINTS.PURCHASE.INVOICES, form); toast.success('Faktur dibuat'); setInvoiceModal(false); crud.refresh(); }} />
+      <InvoiceFormModal open={invoiceModal} onClose={closeModal} type="purchase" editing={editing} saving={saving} onSave={handleSave} />
     </div>
   );
 }

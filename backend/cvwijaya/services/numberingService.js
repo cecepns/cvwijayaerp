@@ -15,6 +15,7 @@ const prefixes = {
   purchase_dp: 'DPB',
   sales_dp: 'DPJ',
   employee_advance: 'KSB',
+  cigarette_kasbon: 'KSR',
   journal: 'JRN',
 };
 
@@ -38,6 +39,7 @@ const generateNumber = async (companyId, type, connection = pool) => {
     purchase_dp: 'purchase_down_payments',
     sales_dp: 'sales_down_payments',
     employee_advance: 'employee_advances',
+    cigarette_kasbon: 'cigarette_kasbon_transactions',
     journal: 'journal_entries',
   };
 
@@ -46,6 +48,7 @@ const generateNumber = async (companyId, type, connection = pool) => {
     purchase_dp: 'dp_no',
     sales_dp: 'dp_no',
     employee_advance: 'advance_no',
+    cigarette_kasbon: 'transaction_no',
     purchase_payment: 'payment_no',
     sales_receipt: 'receipt_no',
     goods_receipt: 'receipt_no',

@@ -165,6 +165,41 @@ router.post('/invoices', auth, async (req, res) => {
   finally { conn.release(); }
 });
 
+router.put('/invoices/:id', auth, async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const b = req.body;
+    const [rows] = await conn.query('SELECT * FROM purchase_invoices WHERE id=? AND company_id=?', [req.params.id, req.user.company_id]);
+    if (!rows.length || rows[0].status !== 'draft') return error(res, 'Faktur tidak dapat diedit');
+    if (!b.supplier_id || !b.warehouse_id || !(b.items || []).length) return error(res, 'Data faktur tidak lengkap');
+
+    let subtotal = 0;
+    for (const item of b.items) subtotal += parseFloat(item.quantity) * parseFloat(item.unit_price);
+    const taxAmount = subtotal * ((b.tax_rate || 0) / 100);
+    const total = subtotal + taxAmount - (parseFloat(b.discount) || 0);
+
+    await conn.query(
+      `UPDATE purchase_invoices SET supplier_id=?, supplier_invoice_no=?, invoice_date=?, due_date=?, warehouse_id=?, subtotal=?, discount=?, tax_amount=?, total=?, notes=? WHERE id=?`,
+      [b.supplier_id, b.supplier_invoice_no || null, b.invoice_date, b.due_date, b.warehouse_id, subtotal, b.discount || 0, taxAmount, total, b.notes || null, req.params.id]
+    );
+
+    await conn.query('DELETE FROM purchase_invoice_items WHERE purchase_invoice_id=?', [req.params.id]);
+    for (const item of b.items) {
+      const itemSub = parseFloat(item.quantity) * parseFloat(item.unit_price);
+      await conn.query(
+        `INSERT INTO purchase_invoice_items (purchase_invoice_id, product_id, quantity, unit_price, discount, tax_amount, subtotal) VALUES (?, ?, ?, ?, ?, 0, ?)`,
+        [req.params.id, item.product_id, item.quantity, item.unit_price, item.discount || 0, itemSub]
+      );
+    }
+
+    await auditLog(req, 'update', 'purchase', 'purchase_invoices', req.params.id, rows[0], b);
+    await conn.commit();
+    return success(res, null, 'Faktur pembelian berhasil diperbarui');
+  } catch (err) { await conn.rollback(); return error(res, err.message, 500); }
+  finally { conn.release(); }
+});
+
 router.post('/invoices/:id/post', auth, async (req, res) => {
   const conn = await pool.getConnection();
   try {

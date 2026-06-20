@@ -5,6 +5,7 @@ import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
+import CurrencyInput from '../../components/ui/CurrencyInput';
 import Select from '../../components/ui/Select';
 import Button from '../../components/ui/Button';
 import { useCrudTable } from '../../hooks/useCrudTable';
@@ -40,7 +41,7 @@ export default function CashTransfersPage() {
           <Select label="Ke Rekening" value={form.to_account_id || ''} onChange={(e) => setForm({ ...form, to_account_id: e.target.value })}
             options={[{ value: '', label: 'Pilih' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]} />
           <Input label="Tanggal" type="date" value={form.transfer_date || ''} onChange={(e) => setForm({ ...form, transfer_date: e.target.value })} />
-          <Input label="Nominal" type="number" value={form.amount || ''} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+          <CurrencyInput label="Nominal" value={form.amount} onChange={(amount) => setForm({ ...form, amount })} />
           <Input label="Keterangan" value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </div>
         <div className="flex justify-end gap-2 mt-4">

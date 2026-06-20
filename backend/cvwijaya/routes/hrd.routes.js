@@ -129,4 +129,148 @@ router.get('/advances/reports', auth, async (req, res) => {
   return success(res, { summary: summary[0], by_employee: byEmployee });
 });
 
+// ============================================================
+// Kasbon Rokok
+// ============================================================
+
+router.get('/kasbon-rokok/items', auth, async (req, res) => {
+  const { page, limit, offset, search } = getPagination(req.query);
+  const { clause, params } = buildSearchWhere(['cki.name'], search);
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM cigarette_kasbon_items cki WHERE cki.company_id=? AND cki.is_active=1${clause}`,
+    [req.user.company_id, ...params]
+  );
+  const [rows] = await pool.query(
+    `SELECT cki.* FROM cigarette_kasbon_items cki
+     WHERE cki.company_id=? AND cki.is_active=1${clause} ORDER BY cki.name ASC LIMIT ? OFFSET ?`,
+    [req.user.company_id, ...params, limit, offset]
+  );
+  return paginated(res, rows, { page, limit, total, totalPages: Math.ceil(total / limit) });
+});
+
+router.get('/kasbon-rokok/items/:id', auth, async (req, res) => {
+  const [rows] = await pool.query(
+    'SELECT * FROM cigarette_kasbon_items WHERE id=? AND company_id=? AND is_active=1',
+    [req.params.id, req.user.company_id]
+  );
+  if (!rows.length) return error(res, 'Not found', 404);
+  return success(res, rows[0]);
+});
+
+router.post('/kasbon-rokok/items', auth, async (req, res) => {
+  const b = req.body;
+  if (!b.name || b.price === undefined || b.stock === undefined) return error(res, 'Nama, harga, dan stok wajib diisi');
+  const [r] = await pool.query(
+    'INSERT INTO cigarette_kasbon_items (company_id, name, price, stock, created_by) VALUES (?, ?, ?, ?, ?)',
+    [req.user.company_id, b.name, b.price, b.stock, req.user.id]
+  );
+  return success(res, { id: r.insertId }, 'Barang rokok berhasil ditambahkan', 201);
+});
+
+router.put('/kasbon-rokok/items/:id', auth, async (req, res) => {
+  const b = req.body;
+  const [rows] = await pool.query(
+    'SELECT * FROM cigarette_kasbon_items WHERE id=? AND company_id=? AND is_active=1',
+    [req.params.id, req.user.company_id]
+  );
+  if (!rows.length) return error(res, 'Not found', 404);
+  await pool.query(
+    'UPDATE cigarette_kasbon_items SET name=?, price=?, stock=? WHERE id=?',
+    [b.name, b.price, b.stock, req.params.id]
+  );
+  return success(res, null, 'Barang rokok berhasil diperbarui');
+});
+
+router.delete('/kasbon-rokok/items/:id', auth, async (req, res) => {
+  const [rows] = await pool.query(
+    'SELECT * FROM cigarette_kasbon_items WHERE id=? AND company_id=? AND is_active=1',
+    [req.params.id, req.user.company_id]
+  );
+  if (!rows.length) return error(res, 'Not found', 404);
+  await pool.query('UPDATE cigarette_kasbon_items SET is_active=0 WHERE id=?', [req.params.id]);
+  return success(res, null, 'Barang rokok berhasil dihapus');
+});
+
+router.get('/kasbon-rokok/transactions', auth, async (req, res) => {
+  const { page, limit, offset, search } = getPagination(req.query);
+  const { clause, params } = buildSearchWhere(['ckt.transaction_no', 'e.name', 'cki.name'], search);
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM cigarette_kasbon_transactions ckt
+     JOIN employees e ON e.id=ckt.employee_id
+     JOIN cigarette_kasbon_items cki ON cki.id=ckt.item_id
+     WHERE ckt.company_id=?${clause}`,
+    [req.user.company_id, ...params]
+  );
+  const [rows] = await pool.query(
+    `SELECT ckt.*, e.name AS employee_name, e.employee_code, cki.name AS item_name
+     FROM cigarette_kasbon_transactions ckt
+     JOIN employees e ON e.id=ckt.employee_id
+     JOIN cigarette_kasbon_items cki ON cki.id=ckt.item_id
+     WHERE ckt.company_id=?${clause} ORDER BY ckt.created_at DESC LIMIT ? OFFSET ?`,
+    [req.user.company_id, ...params, limit, offset]
+  );
+  return paginated(res, rows, { page, limit, total, totalPages: Math.ceil(total / limit) });
+});
+
+router.post('/kasbon-rokok/transactions', auth, async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const b = req.body;
+    if (!b.employee_id || !b.item_id || !b.quantity) return error(res, 'Karyawan, barang, dan jumlah wajib diisi');
+
+    const qty = parseInt(b.quantity, 10);
+    if (qty <= 0) return error(res, 'Jumlah harus lebih dari 0');
+
+    const [items] = await conn.query(
+      'SELECT * FROM cigarette_kasbon_items WHERE id=? AND company_id=? AND is_active=1 FOR UPDATE',
+      [b.item_id, req.user.company_id]
+    );
+    if (!items.length) return error(res, 'Barang tidak ditemukan');
+    const item = items[0];
+    if (item.stock < qty) return error(res, `Stok ${item.name} tidak mencukupi (tersedia: ${item.stock})`);
+
+    const unitPrice = parseFloat(b.unit_price ?? item.price);
+    const total = unitPrice * qty;
+    const transactionNo = await generateNumber(req.user.company_id, 'cigarette_kasbon', conn);
+
+    const [r] = await conn.query(
+      `INSERT INTO cigarette_kasbon_transactions (company_id, transaction_no, employee_id, item_id, transaction_date, quantity, unit_price, total, notes, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.company_id, transactionNo, b.employee_id, b.item_id,
+        b.transaction_date || new Date().toISOString().split('T')[0], qty, unitPrice, total, b.notes || null, req.user.id]
+    );
+
+    await conn.query('UPDATE cigarette_kasbon_items SET stock = stock - ? WHERE id=?', [qty, b.item_id]);
+    await conn.commit();
+    return success(res, { id: r.insertId, transaction_no: transactionNo }, 'Transaksi kasbon berhasil', 201);
+  } catch (err) { await conn.rollback(); return error(res, err.message, 500); }
+  finally { conn.release(); }
+});
+
+router.get('/kasbon-rokok/reports', auth, async (req, res) => {
+  const [summary] = await pool.query(
+    `SELECT COUNT(*) AS total_transactions, SUM(quantity) AS total_qty, SUM(total) AS total_amount
+     FROM cigarette_kasbon_transactions WHERE company_id=?`,
+    [req.user.company_id]
+  );
+  const [byEmployee] = await pool.query(
+    `SELECT e.name, e.employee_code, COUNT(ckt.id) AS count, SUM(ckt.quantity) AS total_qty, SUM(ckt.total) AS total_amount
+     FROM cigarette_kasbon_transactions ckt JOIN employees e ON e.id=ckt.employee_id
+     WHERE ckt.company_id=? GROUP BY e.id ORDER BY total_amount DESC`,
+    [req.user.company_id]
+  );
+  const [byItem] = await pool.query(
+    `SELECT cki.name, SUM(ckt.quantity) AS total_qty, SUM(ckt.total) AS total_amount, cki.stock AS current_stock
+     FROM cigarette_kasbon_transactions ckt JOIN cigarette_kasbon_items cki ON cki.id=ckt.item_id
+     WHERE ckt.company_id=? GROUP BY cki.id ORDER BY total_qty DESC`,
+    [req.user.company_id]
+  );
+  const [stockSummary] = await pool.query(
+    `SELECT name, price, stock FROM cigarette_kasbon_items WHERE company_id=? AND is_active=1 ORDER BY name`,
+    [req.user.company_id]
+  );
+  return success(res, { summary: summary[0], by_employee: byEmployee, by_item: byItem, stock: stockSummary });
+});
+
 module.exports = router;

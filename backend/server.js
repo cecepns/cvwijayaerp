@@ -76,6 +76,7 @@ const PERMISSIONS = [
   ['cash', 'payment', 'cash.payment'],
   ['cash', 'transfer', 'cash.transfer'],
   ['hrd', 'advance', 'hrd.advance'],
+  ['hrd', 'kasbon_rokok', 'hrd.kasbon_rokok'],
   ['hrd', 'report', 'hrd.report'],
   ['audit', 'view', 'audit.view'],
 ];
@@ -85,8 +86,8 @@ const ROLE_PERMISSIONS = {
   admin_gudang: ['dashboard.view', 'master.product', 'inventory.receipt', 'inventory.issue', 'inventory.opname', 'inventory.adjustment'],
   admin_penjualan: ['dashboard.view', 'master.customer', 'sales.down_payment', 'sales.invoice', 'sales.receipt', 'sales.report'],
   admin_pembelian: ['dashboard.view', 'master.supplier', 'purchase.down_payment', 'purchase.invoice', 'purchase.payment', 'purchase.report'],
-  admin_keuangan: ['dashboard.view', 'settings.coa.create', 'settings.coa.update', 'cash.receipt', 'cash.payment', 'cash.transfer', 'sales.receipt', 'purchase.payment', 'hrd.advance', 'hrd.report', 'audit.view'],
-  hrd: ['dashboard.view', 'master.employee', 'hrd.advance', 'hrd.report'],
+  admin_keuangan: ['dashboard.view', 'settings.coa.create', 'settings.coa.update', 'cash.receipt', 'cash.payment', 'cash.transfer', 'sales.receipt', 'purchase.payment', 'hrd.advance', 'hrd.kasbon_rokok', 'hrd.report', 'audit.view'],
+  hrd: ['dashboard.view', 'master.employee', 'hrd.advance', 'hrd.kasbon_rokok', 'hrd.report'],
 };
 
 async function seedDatabase() {
