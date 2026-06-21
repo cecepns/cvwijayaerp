@@ -58,6 +58,7 @@ export const API_ENDPOINTS = {
   },
   INVENTORY: {
     GOODS_RECEIPTS: '/inventory/goods-receipts',
+    GOODS_RECEIPTS_EXPORT: '/inventory/goods-receipts/export',
     GOODS_ISSUES: '/inventory/goods-issues',
     STOCK_OPNAMES: '/inventory/stock-opnames',
     STOCK_OPNAME_DETAIL: (id) => `/inventory/stock-opnames/${id}`,

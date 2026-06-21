@@ -10,14 +10,36 @@ const { journalStockAdjustment } = require('../services/accountingService');
 const router = express.Router();
 
 router.get('/goods-receipts', auth, async (req, res) => {
-  const { page, limit, offset } = getPagination(req.query);
-  const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM goods_receipts WHERE company_id=?', [req.user.company_id]);
+  const { page, limit, offset, search } = getPagination(req.query);
+  const { clause, params } = buildSearchWhere(['gr.receipt_no', 'w.name'], search);
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM goods_receipts gr JOIN warehouses w ON w.id=gr.warehouse_id WHERE gr.company_id=?${clause}`,
+    [req.user.company_id, ...params]
+  );
   const [rows] = await pool.query(
     `SELECT gr.*, w.name AS warehouse_name FROM goods_receipts gr JOIN warehouses w ON w.id=gr.warehouse_id
-     WHERE gr.company_id=? ORDER BY gr.created_at DESC LIMIT ? OFFSET ?`,
-    [req.user.company_id, limit, offset]
+     WHERE gr.company_id=?${clause} ORDER BY gr.created_at DESC LIMIT ? OFFSET ?`,
+    [req.user.company_id, ...params, limit, offset]
   );
   return paginated(res, rows, { page, limit, total, totalPages: Math.ceil(total / limit) });
+});
+
+router.get('/goods-receipts/export', auth, async (req, res) => {
+  const { search } = getPagination(req.query);
+  const { clause, params } = buildSearchWhere(['gr.receipt_no', 'w.name', 'p.sku', 'p.name'], search);
+  const [rows] = await pool.query(
+    `SELECT gr.receipt_no, gr.receipt_date, w.name AS warehouse_name, gr.status, gr.notes,
+            p.sku, p.name AS product_name, gri.quantity, gri.unit_cost,
+            (gri.quantity * gri.unit_cost) AS subtotal
+     FROM goods_receipts gr
+     JOIN warehouses w ON w.id = gr.warehouse_id
+     JOIN goods_receipt_items gri ON gri.goods_receipt_id = gr.id
+     JOIN products p ON p.id = gri.product_id
+     WHERE gr.company_id = ?${clause}
+     ORDER BY gr.receipt_date DESC, gr.receipt_no DESC, p.name ASC`,
+    [req.user.company_id, ...params]
+  );
+  return success(res, rows);
 });
 
 router.get('/goods-issues', auth, async (req, res) => {

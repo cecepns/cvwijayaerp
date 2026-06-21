@@ -1,7 +1,17 @@
-import { Plus, Search } from 'lucide-react';
+import { Download, Plus, Search } from 'lucide-react';
 import Button from './Button';
 
-export default function PageHeader({ title, subtitle, onAdd, addLabel = 'Tambah', search, onSearchChange }) {
+export default function PageHeader({
+  title,
+  subtitle,
+  onAdd,
+  addLabel = 'Tambah',
+  onExport,
+  exportLabel = 'Export Excel',
+  exportLoading = false,
+  search,
+  onSearchChange,
+}) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
@@ -19,6 +29,11 @@ export default function PageHeader({ title, subtitle, onAdd, addLabel = 'Tambah'
               className="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm w-48 sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+        )}
+        {onExport && (
+          <Button variant="secondary" loading={exportLoading} onClick={onExport}>
+            <Download size={16} /> {exportLabel}
+          </Button>
         )}
         {onAdd && (
           <Button onClick={onAdd}><Plus size={16} /> {addLabel}</Button>

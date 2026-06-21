@@ -10,11 +10,26 @@ import Button from '../../components/ui/Button';
 import { useCrudTable } from '../../hooks/useCrudTable';
 import { get, post } from '../../utils/request';
 import { API_ENDPOINTS } from '../../utils/endpoints';
-import { formatDate } from '../../utils/formatters';
+import { formatDate, formatNumber } from '../../utils/formatters';
+import { exportToExcel } from '../../utils/exportExcel';
+
+const EXPORT_COLUMNS = [
+  { key: 'receipt_no', label: 'No. BM' },
+  { key: 'receipt_date', label: 'Tanggal', value: (r) => formatDate(r.receipt_date) },
+  { key: 'warehouse_name', label: 'Gudang' },
+  { key: 'status', label: 'Status' },
+  { key: 'sku', label: 'SKU' },
+  { key: 'product_name', label: 'Nama Barang' },
+  { key: 'quantity', label: 'Qty', value: (r) => formatNumber(r.quantity) },
+  { key: 'unit_cost', label: 'Harga Satuan', value: (r) => formatNumber(r.unit_cost) },
+  { key: 'subtotal', label: 'Subtotal', value: (r) => formatNumber(r.subtotal) },
+  { key: 'notes', label: 'Catatan' },
+];
 
 export default function GoodsReceiptsPage() {
   const crud = useCrudTable(API_ENDPOINTS.INVENTORY.GOODS_RECEIPTS, () => '');
   const [modal, setModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [form, setForm] = useState({ items: [{ product_id: '', quantity: 1, unit_cost: 0 }] });
   const [warehouses, setWarehouses] = useState([]);
   const [products, setProducts] = useState([]);
@@ -23,6 +38,28 @@ export default function GoodsReceiptsPage() {
     Promise.all([get(API_ENDPOINTS.MASTER.WAREHOUSES), get(API_ENDPOINTS.MASTER.PRODUCTS, { limit: 100 })])
       .then(([w, p]) => { setWarehouses(w.data); setProducts(p.data); });
   }, []);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await get(API_ENDPOINTS.INVENTORY.GOODS_RECEIPTS_EXPORT, { search: crud.search });
+      if (!res.data?.length) {
+        toast.error('Tidak ada data untuk diekspor');
+        return;
+      }
+      exportToExcel({
+        rows: res.data,
+        columns: EXPORT_COLUMNS,
+        filename: `barang-masuk-${new Date().toISOString().split('T')[0]}.xlsx`,
+        sheetName: 'Barang Masuk',
+      });
+      toast.success('Data berhasil diekspor');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal mengekspor data');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const columns = [
     { key: 'receipt_no', label: 'No. BM' },
@@ -33,7 +70,17 @@ export default function GoodsReceiptsPage() {
 
   return (
     <div>
-      <PageHeader title="Barang Masuk" onAdd={() => { setForm({ receipt_date: new Date().toISOString().split('T')[0], items: [{ product_id: '', quantity: 1, unit_cost: 0 }] }); setModal(true); }} />
+      <PageHeader
+        title="Barang Masuk"
+        search={crud.search}
+        onSearchChange={crud.setSearch}
+        onExport={handleExport}
+        exportLoading={exporting}
+        onAdd={() => {
+          setForm({ receipt_date: new Date().toISOString().split('T')[0], items: [{ product_id: '', quantity: 1, unit_cost: 0 }] });
+          setModal(true);
+        }}
+      />
       <DataTable columns={columns} data={crud.data} loading={crud.loading} />
       <Pagination pagination={crud.pagination} onPageChange={(p) => crud.setPagination((x) => ({ ...x, page: p }))} onLimitChange={(l) => crud.setPagination((x) => ({ ...x, limit: l, page: 1 }))} />
       <Modal open={modal} onClose={() => setModal(false)} title="Barang Masuk" size="lg">
