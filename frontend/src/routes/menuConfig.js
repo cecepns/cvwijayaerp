@@ -1,7 +1,8 @@
 import {
-  LayoutDashboard, Settings, Users, Wallet, ShoppingCart, Package,
+  LayoutDashboard, Settings, Users, Wallet, Package,
   Warehouse, UserCircle, FileText, ArrowDownCircle, ArrowUpCircle,
   RefreshCw, ClipboardList, Truck, CreditCard, BarChart3, Shield, Cigarette,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 export const menuGroups = [
