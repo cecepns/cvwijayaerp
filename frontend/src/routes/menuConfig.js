@@ -32,7 +32,7 @@ export const menuGroups = [
   {
     label: 'Kasbon Rokok',
     items: [
-      { path: '/kasbon-rokok', label: 'Kasbon Rokok', icon: Cigarette },
+      { path: '/kasbon-rokok', label: 'Kasbon Rokok', icon: Cigarette, end: true },
       { path: '/kasbon-rokok/items', label: 'Data Barang Rokok', icon: Package },
       { path: '/kasbon-rokok/transactions', label: 'Transaksi', icon: ArrowLeftRight },
       { path: '/kasbon-rokok/reports', label: 'Laporan', icon: BarChart3 },
