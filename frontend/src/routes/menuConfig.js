@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Settings, Users, Wallet, ShoppingCart, Package,
   Warehouse, UserCircle, FileText, ArrowDownCircle, ArrowUpCircle,
-  RefreshCw, ClipboardList, Truck, CreditCard, BarChart3, Shield,
+  RefreshCw, ClipboardList, Truck, CreditCard, BarChart3, Shield, Cigarette,
 } from 'lucide-react';
 
 export const menuGroups = [
@@ -23,10 +23,18 @@ export const menuGroups = [
   {
     label: 'HRD',
     items: [
-      { path: '/hrd/kasbon', label: 'Kasbon Rokok', icon: CreditCard },
       { path: '/master/employees', label: 'Data Karyawan', icon: Users },
       { path: '/hrd/advances', label: 'Transaksi Kasbon', icon: CreditCard },
       { path: '/hrd/reports', label: 'Laporan Kasbon', icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'Kasbon Rokok',
+    items: [
+      { path: '/kasbon-rokok', label: 'Kasbon Rokok', icon: Cigarette },
+      { path: '/kasbon-rokok/items', label: 'Data Barang Rokok', icon: Package },
+      { path: '/kasbon-rokok/transactions', label: 'Transaksi', icon: ArrowLeftRight },
+      { path: '/kasbon-rokok/reports', label: 'Laporan', icon: BarChart3 },
     ],
   },
   {

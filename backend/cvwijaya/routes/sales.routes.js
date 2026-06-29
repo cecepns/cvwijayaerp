@@ -293,10 +293,25 @@ router.get('/reports', auth, async (req, res) => {
       SUM(si.total - si.paid_amount) AS total_outstanding FROM sales_invoices si WHERE si.company_id=?${clause}`, params
   );
   const [byCustomer] = await pool.query(
-    `SELECT c.name, COUNT(si.id) AS count, SUM(si.total) AS total FROM sales_invoices si
+    `SELECT c.id, c.name, COUNT(si.id) AS count, SUM(si.total) AS total FROM sales_invoices si
      JOIN customers c ON c.id=si.customer_id WHERE si.company_id=?${clause} GROUP BY c.id ORDER BY total DESC LIMIT 10`, params
   );
   return success(res, { summary: summary[0], by_customer: byCustomer });
+});
+
+router.get('/reports/invoices', auth, async (req, res) => {
+  const { customer_id, date_from, date_to } = req.query;
+  if (!customer_id) return error(res, 'customer_id wajib diisi');
+  let clause = ' AND si.status != ? AND si.customer_id = ?';
+  const params = [req.user.company_id, 'cancelled', customer_id];
+  if (date_from) { clause += ' AND si.invoice_date >= ?'; params.push(date_from); }
+  if (date_to) { clause += ' AND si.invoice_date <= ?'; params.push(date_to); }
+  const [rows] = await pool.query(
+    `SELECT si.id, si.invoice_no, si.invoice_date, si.total, si.paid_amount, si.status
+     FROM sales_invoices si WHERE si.company_id=?${clause} ORDER BY si.invoice_date DESC`,
+    params
+  );
+  return success(res, rows);
 });
 
 module.exports = router;

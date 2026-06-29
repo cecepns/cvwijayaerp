@@ -100,7 +100,7 @@ export default function KasbonRokokReportsPage() {
 
   return (
     <div>
-      <Link to="/hrd/kasbon" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
+      <Link to="/kasbon-rokok" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-4">
         <ArrowLeft size={16} /> Kembali ke Kasbon
       </Link>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">

@@ -8,6 +8,7 @@ import Select from '../../components/ui/Select';
 import Button from '../../components/ui/Button';
 import { useCrudTable } from '../../hooks/useCrudTable';
 import { API_ENDPOINTS } from '../../utils/endpoints';
+import { formatCurrency } from '../../utils/formatters';
 
 export default function ChartOfAccountsPage() {
   const crud = useCrudTable(API_ENDPOINTS.SETTINGS.COA, API_ENDPOINTS.SETTINGS.COA_DETAIL);
@@ -22,13 +23,14 @@ export default function ChartOfAccountsPage() {
     { key: 'code', label: 'Kode' },
     { key: 'name', label: 'Nama Akun' },
     { key: 'account_type', label: 'Tipe' },
+    { key: 'balance', label: 'Saldo', render: (r) => <span className="font-medium">{formatCurrency(r.balance)}</span> },
     { key: 'normal_balance', label: 'Saldo Normal' },
     { key: 'is_active', label: 'Status', render: (r) => r.is_active ? 'Aktif' : 'Nonaktif' },
   ];
 
   return (
     <div>
-      <PageHeader title="Akun Perkiraan" onAdd={() => openModal(null)} search={crud.search} onSearchChange={crud.setSearch} />
+      <PageHeader title="Akun Perkiraan" subtitle="Saldo dihitung dari jurnal: penjualan menambah, pembelian mengurangi saldo kas/bank" onAdd={() => openModal(null)} search={crud.search} onSearchChange={crud.setSearch} />
       <DataTable columns={columns} data={crud.data} loading={crud.loading} onEdit={openModal} onDelete={crud.remove} />
       <Pagination pagination={crud.pagination} onPageChange={(p) => crud.setPagination((x) => ({ ...x, page: p }))} onLimitChange={(l) => crud.setPagination((x) => ({ ...x, limit: l, page: 1 }))} />
       <Modal open={crud.modalOpen} onClose={crud.closeModal} title={crud.editing ? 'Edit Akun' : 'Tambah Akun'}>

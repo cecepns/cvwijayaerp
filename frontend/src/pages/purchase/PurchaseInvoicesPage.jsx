@@ -1,23 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { CheckCircle, Pencil, Wallet } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
+import Select from '../../components/ui/Select';
+import DateRangeFilter from '../../components/ui/DateRangeFilter';
 import InvoiceFormModal from '../../components/forms/InvoiceFormModal';
-import { useCrudTable } from '../../hooks/useCrudTable';
-import { post, put } from '../../utils/request';
+import { useFilteredCrudTable } from '../../hooks/useFilteredCrudTable';
+import { get, post, put } from '../../utils/request';
 import { API_ENDPOINTS } from '../../utils/endpoints';
 import { formatCurrency, formatDate, statusBadge } from '../../utils/formatters';
 import Button from '../../components/ui/Button';
 
 export default function PurchaseInvoicesPage() {
   const navigate = useNavigate();
-  const crud = useCrudTable(API_ENDPOINTS.PURCHASE.INVOICES, API_ENDPOINTS.PURCHASE.INVOICE_DETAIL);
+  const crud = useFilteredCrudTable(API_ENDPOINTS.PURCHASE.INVOICES, API_ENDPOINTS.PURCHASE.INVOICE_DETAIL, {
+    date_from: '', date_to: '', supplier_id: '', payment_status: '',
+  });
   const [invoiceModal, setInvoiceModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [suppliers, setSuppliers] = useState([]);
+
+  useEffect(() => {
+    get(API_ENDPOINTS.MASTER.SUPPLIERS, { limit: 100 }).then((r) => setSuppliers(r.data));
+  }, []);
 
   const getOutstanding = (row) => parseFloat(row.total) - parseFloat(row.paid_amount || 0);
 
@@ -68,12 +77,43 @@ export default function PurchaseInvoicesPage() {
     { key: 'invoice_date', label: 'Tanggal', render: (r) => formatDate(r.invoice_date) },
     { key: 'total', label: 'Total', render: (r) => formatCurrency(r.total) },
     { key: 'paid_amount', label: 'Dibayar', render: (r) => formatCurrency(r.paid_amount) },
+    { key: 'payment_label', label: 'Status Bayar', render: (r) => (
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.payment_label === 'Lunas' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+        {r.payment_label}
+      </span>
+    ) },
     { key: 'status', label: 'Status', render: (r) => <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge(r.status)}`}>{r.status}</span> },
   ];
 
   return (
     <div>
       <PageHeader title="Faktur Pembelian" onAdd={openCreate} addLabel="Buat Faktur" search={crud.search} onSearchChange={crud.setSearch} />
+
+      <div className="bg-white rounded-xl border p-4 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <DateRangeFilter
+          dateFrom={crud.filters.date_from}
+          dateTo={crud.filters.date_to}
+          onDateFromChange={(v) => crud.setFilter('date_from', v)}
+          onDateToChange={(v) => crud.setFilter('date_to', v)}
+        />
+        <Select
+          label="Pemasok"
+          value={crud.filters.supplier_id}
+          onChange={(e) => crud.setFilter('supplier_id', e.target.value)}
+          options={[{ value: '', label: 'Semua' }, ...suppliers.map((s) => ({ value: s.id, label: s.name }))]}
+        />
+        <Select
+          label="Status"
+          value={crud.filters.payment_status}
+          onChange={(e) => crud.setFilter('payment_status', e.target.value)}
+          options={[
+            { value: '', label: 'Semua' },
+            { value: 'paid', label: 'Lunas' },
+            { value: 'unpaid', label: 'Belum Lunas' },
+          ]}
+        />
+      </div>
+
       <DataTable columns={columns} data={crud.data} loading={crud.loading} actions={(row) => (
         <div className="flex items-center gap-1 justify-end">
           {row.status === 'draft' && (

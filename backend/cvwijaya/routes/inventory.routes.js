@@ -42,6 +42,41 @@ router.get('/goods-receipts/export', auth, async (req, res) => {
   return success(res, rows);
 });
 
+router.get('/goods-issues/export', auth, async (req, res) => {
+  const { search } = getPagination(req.query);
+  const { clause, params } = buildSearchWhere(['gi.issue_no', 'w.name', 'p.sku', 'p.name'], search);
+  const [rows] = await pool.query(
+    `SELECT gi.issue_no, gi.issue_date, w.name AS warehouse_name, gi.status, gi.notes,
+            p.sku, p.name AS product_name, gii.quantity, gii.unit_cost,
+            (gii.quantity * gii.unit_cost) AS subtotal
+     FROM goods_issues gi
+     JOIN warehouses w ON w.id = gi.warehouse_id
+     JOIN goods_issue_items gii ON gii.goods_issue_id = gi.id
+     JOIN products p ON p.id = gii.product_id
+     WHERE gi.company_id = ?${clause}
+     ORDER BY gi.issue_date DESC, gi.issue_no DESC, p.name ASC`,
+    [req.user.company_id, ...params]
+  );
+  return success(res, rows);
+});
+
+router.get('/stocks/export', auth, async (req, res) => {
+  const { search } = getPagination(req.query);
+  const { clause, params } = buildSearchWhere(['p.sku', 'p.name'], search);
+  const [rows] = await pool.query(
+    `SELECT p.sku, p.name, p.unit, p.min_stock,
+      COALESCE(SUM(ps.quantity), 0) AS total_stock,
+      COALESCE(SUM(ps.quantity * ps.avg_cost), 0) AS stock_value
+     FROM products p
+     LEFT JOIN product_stocks ps ON ps.product_id = p.id
+     WHERE p.company_id = ? AND p.deleted_at IS NULL AND p.type = 'goods'${clause}
+     GROUP BY p.id
+     ORDER BY p.name ASC`,
+    [req.user.company_id, ...params]
+  );
+  return success(res, rows);
+});
+
 router.get('/goods-issues', auth, async (req, res) => {
   const { page, limit, offset } = getPagination(req.query);
   const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM goods_issues WHERE company_id=?', [req.user.company_id]);

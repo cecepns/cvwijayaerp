@@ -119,8 +119,21 @@ router.delete('/suppliers/:id', auth, async (req, res) => {
 
 // Products
 router.get('/products', auth, async (req, res) => {
-  const result = await crudList(req, res, 'products', ['t.sku', 't.name', 't.barcode']);
-  return result;
+  const { page, limit, offset, search, sort, order } = getPagination(req.query);
+  const { clause, params } = buildSearchWhere(['t.sku', 't.name', 't.barcode'], search);
+  const cid = req.user.company_id;
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM products t WHERE t.company_id = ? AND t.deleted_at IS NULL${clause}`,
+    [cid, ...params]
+  );
+  const [rows] = await pool.query(
+    `SELECT t.*, w.name AS warehouse_name FROM products t
+     LEFT JOIN warehouses w ON w.id = t.default_warehouse_id
+     WHERE t.company_id = ? AND t.deleted_at IS NULL${clause}
+     ORDER BY t.${sort} ${order} LIMIT ? OFFSET ?`,
+    [cid, ...params, limit, offset]
+  );
+  return paginated(res, rows, { page, limit, total, totalPages: Math.ceil(total / limit) });
 });
 
 router.get('/products/:id/stock', auth, async (req, res) => {
@@ -133,23 +146,40 @@ router.get('/products/:id/stock', auth, async (req, res) => {
 });
 
 router.post('/products', auth, async (req, res) => {
-  const b = req.body;
-  if (!b.sku || !b.name) return error(res, 'SKU dan nama wajib diisi');
-  const [r] = await pool.query(
-    `INSERT INTO products (company_id, sku, barcode, name, type, unit, purchase_price, selling_price, min_stock, description, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.user.company_id, sanitize(b.sku), sanitize(b.barcode), sanitize(b.name), b.type || 'goods',
-      b.unit || 'pcs', b.purchase_price || 0, b.selling_price || 0, b.min_stock || 0, b.description, req.user.id]
-  );
-  return success(res, { id: r.insertId }, 'Barang berhasil ditambahkan', 201);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const b = req.body;
+    if (!b.sku || !b.name) return error(res, 'SKU dan nama wajib diisi');
+    const [r] = await conn.query(
+      `INSERT INTO products (company_id, sku, barcode, name, type, category, default_warehouse_id, unit, purchase_price, selling_price, min_stock, description, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.company_id, sanitize(b.sku), sanitize(b.barcode), sanitize(b.name), b.type || 'goods',
+        sanitize(b.category), b.default_warehouse_id || null, b.unit || 'pcs', b.purchase_price || 0,
+        b.selling_price || 0, b.min_stock || 0, b.description, req.user.id]
+    );
+    if (b.default_warehouse_id && b.type !== 'service') {
+      await conn.query(
+        'INSERT INTO product_stocks (product_id, warehouse_id, quantity, avg_cost) VALUES (?, ?, 0, ?) ON DUPLICATE KEY UPDATE product_id=product_id',
+        [r.insertId, b.default_warehouse_id, b.purchase_price || 0]
+      );
+    }
+    await conn.commit();
+    return success(res, { id: r.insertId }, 'Barang berhasil ditambahkan', 201);
+  } catch (err) {
+    await conn.rollback();
+    return error(res, err.message, 500);
+  } finally {
+    conn.release();
+  }
 });
 
 router.put('/products/:id', auth, async (req, res) => {
   const b = req.body;
   await pool.query(
-    `UPDATE products SET sku=?, barcode=?, name=?, type=?, unit=?, purchase_price=?, selling_price=?, min_stock=?, description=?, is_active=? WHERE id=? AND company_id=?`,
-    [sanitize(b.sku), sanitize(b.barcode), sanitize(b.name), b.type, b.unit, b.purchase_price, b.selling_price,
-      b.min_stock, b.description, b.is_active ? 1 : 0, req.params.id, req.user.company_id]
+    `UPDATE products SET sku=?, barcode=?, name=?, type=?, category=?, default_warehouse_id=?, unit=?, purchase_price=?, selling_price=?, min_stock=?, description=?, is_active=? WHERE id=? AND company_id=?`,
+    [sanitize(b.sku), sanitize(b.barcode), sanitize(b.name), b.type, sanitize(b.category), b.default_warehouse_id || null,
+      b.unit, b.purchase_price, b.selling_price, b.min_stock, b.description, b.is_active ? 1 : 0, req.params.id, req.user.company_id]
   );
   return success(res, null, 'Barang berhasil diperbarui');
 });

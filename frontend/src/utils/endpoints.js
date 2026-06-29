@@ -46,6 +46,7 @@ export const API_ENDPOINTS = {
     INVOICE_POST: (id) => `/purchase/invoices/${id}/post`,
     PAYMENTS: '/purchase/payments',
     REPORTS: '/purchase/reports',
+    REPORT_INVOICES: '/purchase/reports/invoices',
   },
   SALES: {
     DOWN_PAYMENTS: '/sales/down-payments',
@@ -55,11 +56,13 @@ export const API_ENDPOINTS = {
     INVOICE_POST: (id) => `/sales/invoices/${id}/post`,
     RECEIPTS: '/sales/receipts',
     REPORTS: '/sales/reports',
+    REPORT_INVOICES: '/sales/reports/invoices',
   },
   INVENTORY: {
     GOODS_RECEIPTS: '/inventory/goods-receipts',
     GOODS_RECEIPTS_EXPORT: '/inventory/goods-receipts/export',
     GOODS_ISSUES: '/inventory/goods-issues',
+    GOODS_ISSUES_EXPORT: '/inventory/goods-issues/export',
     STOCK_OPNAMES: '/inventory/stock-opnames',
     STOCK_OPNAME_DETAIL: (id) => `/inventory/stock-opnames/${id}`,
     STOCK_OPNAME_COMPLETE: (id) => `/inventory/stock-opnames/${id}/complete`,
@@ -67,6 +70,7 @@ export const API_ENDPOINTS = {
     STOCK_ADJUSTMENT_APPROVE: (id) => `/inventory/stock-adjustments/${id}/approve`,
     STOCK_MOVEMENTS: '/inventory/stock-movements',
     STOCKS: '/inventory/stocks',
+    STOCKS_EXPORT: '/inventory/stocks/export',
   },
   CASH: {
     RECEIPTS: '/cash/receipts',
@@ -83,8 +87,10 @@ export const API_ENDPOINTS = {
     REPORTS: '/hrd/advances/reports',
     KASBON_ROKOK: {
       ITEMS: '/hrd/kasbon-rokok/items',
+      ITEMS_EXPORT: '/hrd/kasbon-rokok/items/export',
       ITEM_DETAIL: (id) => `/hrd/kasbon-rokok/items/${id}`,
       TRANSACTIONS: '/hrd/kasbon-rokok/transactions',
+      TRANSACTIONS_EXPORT: '/hrd/kasbon-rokok/transactions/export',
       REPORTS: '/hrd/kasbon-rokok/reports',
     },
   },

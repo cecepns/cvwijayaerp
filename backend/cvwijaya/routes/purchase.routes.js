@@ -106,17 +106,30 @@ router.post('/down-payments/:id/post', auth, async (req, res) => {
 router.get('/invoices', auth, async (req, res) => {
   const { page, limit, offset, search } = getPagination(req.query);
   const status = req.query.status;
-  let statusClause = '';
+  const supplierId = req.query.supplier_id;
+  const dateFrom = req.query.date_from;
+  const dateTo = req.query.date_to;
+  const paymentStatus = req.query.payment_status;
+
+  let extraClause = '';
   const params = [req.user.company_id];
-  if (status) { statusClause = ' AND pi.status = ?'; params.push(status); }
+  if (status) { extraClause += ' AND pi.status = ?'; params.push(status); }
+  if (supplierId) { extraClause += ' AND pi.supplier_id = ?'; params.push(supplierId); }
+  if (dateFrom) { extraClause += ' AND pi.invoice_date >= ?'; params.push(dateFrom); }
+  if (dateTo) { extraClause += ' AND pi.invoice_date <= ?'; params.push(dateTo); }
+  if (paymentStatus === 'paid') { extraClause += ' AND pi.paid_amount >= pi.total AND pi.status NOT IN (?, ?)'; params.push('draft', 'cancelled'); }
+  if (paymentStatus === 'unpaid') { extraClause += ' AND pi.paid_amount < pi.total AND pi.status NOT IN (?, ?)'; params.push('draft', 'cancelled'); }
+
   const { clause, params: sp } = buildSearchWhere(['pi.invoice_no'], search, params.length + 1);
   const [[{ total }]] = await pool.query(
-    `SELECT COUNT(*) AS total FROM purchase_invoices pi WHERE pi.company_id=?${statusClause}${clause}`,
+    `SELECT COUNT(*) AS total FROM purchase_invoices pi WHERE pi.company_id=?${extraClause}${clause}`,
     [...params, ...sp]
   );
   const [rows] = await pool.query(
-    `SELECT pi.*, s.name AS supplier_name FROM purchase_invoices pi
-     JOIN suppliers s ON s.id = pi.supplier_id WHERE pi.company_id=?${statusClause}${clause}
+    `SELECT pi.*, s.name AS supplier_name,
+      CASE WHEN pi.paid_amount >= pi.total THEN 'Lunas' ELSE 'Belum Lunas' END AS payment_label
+     FROM purchase_invoices pi
+     JOIN suppliers s ON s.id = pi.supplier_id WHERE pi.company_id=?${extraClause}${clause}
      ORDER BY pi.created_at DESC LIMIT ? OFFSET ?`,
     [...params, ...sp, limit, offset]
   );
@@ -299,11 +312,26 @@ router.get('/reports', auth, async (req, res) => {
     params
   );
   const [bySupplier] = await pool.query(
-    `SELECT s.name, COUNT(pi.id) AS count, SUM(pi.total) AS total FROM purchase_invoices pi
+    `SELECT s.id, s.name, COUNT(pi.id) AS count, SUM(pi.total) AS total FROM purchase_invoices pi
      JOIN suppliers s ON s.id=pi.supplier_id WHERE pi.company_id=?${clause} GROUP BY s.id ORDER BY total DESC LIMIT 10`,
     params
   );
   return success(res, { summary: summary[0], by_supplier: bySupplier });
+});
+
+router.get('/reports/invoices', auth, async (req, res) => {
+  const { supplier_id, date_from, date_to } = req.query;
+  if (!supplier_id) return error(res, 'supplier_id wajib diisi');
+  let clause = ' AND pi.status != ? AND pi.supplier_id = ?';
+  const params = [req.user.company_id, 'cancelled', supplier_id];
+  if (date_from) { clause += ' AND pi.invoice_date >= ?'; params.push(date_from); }
+  if (date_to) { clause += ' AND pi.invoice_date <= ?'; params.push(date_to); }
+  const [rows] = await pool.query(
+    `SELECT pi.id, pi.invoice_no, pi.invoice_date, pi.total, pi.paid_amount, pi.status
+     FROM purchase_invoices pi WHERE pi.company_id=?${clause} ORDER BY pi.invoice_date DESC`,
+    params
+  );
+  return success(res, rows);
 });
 
 module.exports = router;

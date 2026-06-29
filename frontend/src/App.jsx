@@ -72,10 +72,14 @@ export default function App() {
             <Route path="cash/transfers" element={<CashTransfersPage />} />
             <Route path="hrd/advances" element={<EmployeeAdvancesPage />} />
             <Route path="hrd/reports" element={<AdvanceReportsPage />} />
-            <Route path="hrd/kasbon" element={<KasbonRokokHubPage />} />
-            <Route path="hrd/kasbon-rokok/items" element={<KasbonRokokItemsPage />} />
-            <Route path="hrd/kasbon-rokok/transactions" element={<KasbonRokokTransactionsPage />} />
-            <Route path="hrd/kasbon-rokok/reports" element={<KasbonRokokReportsPage />} />
+            <Route path="kasbon-rokok" element={<KasbonRokokHubPage />} />
+            <Route path="kasbon-rokok/items" element={<KasbonRokokItemsPage />} />
+            <Route path="kasbon-rokok/transactions" element={<KasbonRokokTransactionsPage />} />
+            <Route path="kasbon-rokok/reports" element={<KasbonRokokReportsPage />} />
+            <Route path="hrd/kasbon" element={<Navigate to="/kasbon-rokok" replace />} />
+            <Route path="hrd/kasbon-rokok/items" element={<Navigate to="/kasbon-rokok/items" replace />} />
+            <Route path="hrd/kasbon-rokok/transactions" element={<Navigate to="/kasbon-rokok/transactions" replace />} />
+            <Route path="hrd/kasbon-rokok/reports" element={<Navigate to="/kasbon-rokok/reports" replace />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

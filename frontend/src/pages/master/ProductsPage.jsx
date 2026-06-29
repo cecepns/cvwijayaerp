@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
@@ -7,21 +7,40 @@ import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Button from '../../components/ui/Button';
 import { useCrudTable } from '../../hooks/useCrudTable';
+import { get } from '../../utils/request';
 import { API_ENDPOINTS } from '../../utils/endpoints';
 import { formatCurrency } from '../../utils/formatters';
+
+const CATEGORIES = [
+  { value: 'Umum', label: 'Umum' },
+  { value: 'Sparepart', label: 'Sparepart' },
+  { value: 'Aksesoris', label: 'Aksesoris' },
+  { value: 'Jasa', label: 'Jasa' },
+  { value: 'Lainnya', label: 'Lainnya' },
+];
 
 export default function ProductsPage() {
   const crud = useCrudTable(API_ENDPOINTS.MASTER.PRODUCTS, API_ENDPOINTS.MASTER.PRODUCT_DETAIL);
   const [form, setForm] = useState({});
+  const [warehouses, setWarehouses] = useState([]);
+
+  useEffect(() => {
+    get(API_ENDPOINTS.MASTER.WAREHOUSES).then((r) => setWarehouses(r.data));
+  }, []);
 
   const openModal = (row) => {
-    setForm(row || { sku: '', name: '', type: 'goods', unit: 'pcs', purchase_price: 0, selling_price: 0, min_stock: 0, is_active: true });
+    setForm(row || {
+      sku: '', name: '', type: 'goods', category: 'Umum', default_warehouse_id: '',
+      unit: 'pcs', purchase_price: 0, selling_price: 0, min_stock: 0, is_active: true,
+    });
     row ? crud.openEdit(row) : crud.openCreate();
   };
 
   const columns = [
     { key: 'sku', label: 'SKU' },
     { key: 'name', label: 'Nama' },
+    { key: 'category', label: 'Kategori' },
+    { key: 'warehouse_name', label: 'Gudang' },
     { key: 'type', label: 'Tipe', render: (r) => r.type === 'goods' ? 'Barang' : 'Jasa' },
     { key: 'unit', label: 'Satuan' },
     { key: 'purchase_price', label: 'Harga Beli', render: (r) => formatCurrency(r.purchase_price) },
@@ -40,6 +59,10 @@ export default function ProductsPage() {
           <Input label="Nama" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <Select label="Tipe" value={form.type || 'goods'} onChange={(e) => setForm({ ...form, type: e.target.value })}
             options={[{ value: 'goods', label: 'Barang' }, { value: 'service', label: 'Jasa' }]} />
+          <Select label="Kategori" value={form.category || 'Umum'} onChange={(e) => setForm({ ...form, category: e.target.value })}
+            options={CATEGORIES} />
+          <Select label="Gudang" value={form.default_warehouse_id || ''} onChange={(e) => setForm({ ...form, default_warehouse_id: e.target.value })}
+            options={[{ value: '', label: 'Pilih Gudang' }, ...warehouses.map((w) => ({ value: w.id, label: w.name }))]} />
           <Input label="Satuan" value={form.unit || 'pcs'} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
           <Input label="Harga Beli" type="number" value={form.purchase_price || ''} onChange={(e) => setForm({ ...form, purchase_price: e.target.value })} />
           <Input label="Harga Jual" type="number" value={form.selling_price || ''} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} />

@@ -133,6 +133,19 @@ router.get('/advances/reports', auth, async (req, res) => {
 // Kasbon Rokok
 // ============================================================
 
+router.get('/kasbon-rokok/items/export', auth, async (req, res) => {
+  const { search } = getPagination(req.query);
+  const { clause, params } = buildSearchWhere(['cki.name'], search);
+  const [rows] = await pool.query(
+    `SELECT cki.name, cki.price, cki.stock
+     FROM cigarette_kasbon_items cki
+     WHERE cki.company_id=? AND cki.is_active=1${clause}
+     ORDER BY cki.name ASC`,
+    [req.user.company_id, ...params]
+  );
+  return success(res, rows);
+});
+
 router.get('/kasbon-rokok/items', auth, async (req, res) => {
   const { page, limit, offset, search } = getPagination(req.query);
   const { clause, params } = buildSearchWhere(['cki.name'], search);
@@ -191,6 +204,22 @@ router.delete('/kasbon-rokok/items/:id', auth, async (req, res) => {
   return success(res, null, 'Barang rokok berhasil dihapus');
 });
 
+router.get('/kasbon-rokok/transactions/export', auth, async (req, res) => {
+  const { search } = getPagination(req.query);
+  const { clause, params } = buildSearchWhere(['ckt.transaction_no', 'e.name', 'cki.name'], search);
+  const [rows] = await pool.query(
+    `SELECT ckt.transaction_no, ckt.transaction_date, ckt.category, e.employee_code, e.name AS employee_name,
+            cki.name AS item_name, ckt.quantity, ckt.unit_price, ckt.total, ckt.notes
+     FROM cigarette_kasbon_transactions ckt
+     JOIN employees e ON e.id=ckt.employee_id
+     JOIN cigarette_kasbon_items cki ON cki.id=ckt.item_id
+     WHERE ckt.company_id=?${clause}
+     ORDER BY ckt.transaction_date DESC, ckt.transaction_no DESC`,
+    [req.user.company_id, ...params]
+  );
+  return success(res, rows);
+});
+
 router.get('/kasbon-rokok/transactions', auth, async (req, res) => {
   const { page, limit, offset, search } = getPagination(req.query);
   const { clause, params } = buildSearchWhere(['ckt.transaction_no', 'e.name', 'cki.name'], search);
@@ -235,10 +264,10 @@ router.post('/kasbon-rokok/transactions', auth, async (req, res) => {
     const transactionNo = await generateNumber(req.user.company_id, 'cigarette_kasbon', conn);
 
     const [r] = await conn.query(
-      `INSERT INTO cigarette_kasbon_transactions (company_id, transaction_no, employee_id, item_id, transaction_date, quantity, unit_price, total, notes, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO cigarette_kasbon_transactions (company_id, transaction_no, employee_id, item_id, transaction_date, category, quantity, unit_price, total, notes, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [req.user.company_id, transactionNo, b.employee_id, b.item_id,
-        b.transaction_date || new Date().toISOString().split('T')[0], qty, unitPrice, total, b.notes || null, req.user.id]
+        b.transaction_date || new Date().toISOString().split('T')[0], b.category || 'mingguan', qty, unitPrice, total, b.notes || null, req.user.id]
     );
 
     await conn.query('UPDATE cigarette_kasbon_items SET stock = stock - ? WHERE id=?', [qty, b.item_id]);
@@ -249,22 +278,28 @@ router.post('/kasbon-rokok/transactions', auth, async (req, res) => {
 });
 
 router.get('/kasbon-rokok/reports', auth, async (req, res) => {
+  const { date_from, date_to } = req.query;
+  let clause = '';
+  const params = [req.user.company_id];
+  if (date_from) { clause += ' AND transaction_date >= ?'; params.push(date_from); }
+  if (date_to) { clause += ' AND transaction_date <= ?'; params.push(date_to); }
+
   const [summary] = await pool.query(
     `SELECT COUNT(*) AS total_transactions, SUM(quantity) AS total_qty, SUM(total) AS total_amount
-     FROM cigarette_kasbon_transactions WHERE company_id=?`,
-    [req.user.company_id]
+     FROM cigarette_kasbon_transactions WHERE company_id=?${clause}`,
+    params
   );
   const [byEmployee] = await pool.query(
-    `SELECT e.name, e.employee_code, COUNT(ckt.id) AS count, SUM(ckt.quantity) AS total_qty, SUM(ckt.total) AS total_amount
+    `SELECT e.id, e.name, e.employee_code, COUNT(ckt.id) AS count, SUM(ckt.quantity) AS total_qty, SUM(ckt.total) AS total_amount
      FROM cigarette_kasbon_transactions ckt JOIN employees e ON e.id=ckt.employee_id
-     WHERE ckt.company_id=? GROUP BY e.id ORDER BY total_amount DESC`,
-    [req.user.company_id]
+     WHERE ckt.company_id=?${clause} GROUP BY e.id ORDER BY total_amount DESC`,
+    params
   );
   const [byItem] = await pool.query(
     `SELECT cki.name, SUM(ckt.quantity) AS total_qty, SUM(ckt.total) AS total_amount, cki.stock AS current_stock
      FROM cigarette_kasbon_transactions ckt JOIN cigarette_kasbon_items cki ON cki.id=ckt.item_id
-     WHERE ckt.company_id=? GROUP BY cki.id ORDER BY total_qty DESC`,
-    [req.user.company_id]
+     WHERE ckt.company_id=?${clause} GROUP BY cki.id ORDER BY total_qty DESC`,
+    params
   );
   const [stockSummary] = await pool.query(
     `SELECT name, price, stock FROM cigarette_kasbon_items WHERE company_id=? AND is_active=1 ORDER BY name`,

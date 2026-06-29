@@ -3,9 +3,9 @@ import { Users, Package, ArrowLeftRight, BarChart3 } from 'lucide-react';
 
 const cards = [
   { path: '/master/employees', label: 'Karyawan', icon: Users, color: 'bg-sky-50 border-sky-200 text-sky-700 hover:bg-sky-100' },
-  { path: '/hrd/kasbon-rokok/items', label: 'Barang', icon: Package, color: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' },
-  { path: '/hrd/kasbon-rokok/transactions', label: 'Transaksi', icon: ArrowLeftRight, color: 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' },
-  { path: '/hrd/kasbon-rokok/reports', label: 'Laporan', icon: BarChart3, color: 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100' },
+  { path: '/kasbon-rokok/items', label: 'Barang', icon: Package, color: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' },
+  { path: '/kasbon-rokok/transactions', label: 'Transaksi', icon: ArrowLeftRight, color: 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' },
+  { path: '/kasbon-rokok/reports', label: 'Laporan', icon: BarChart3, color: 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100' },
 ];
 
 export default function KasbonRokokHubPage() {

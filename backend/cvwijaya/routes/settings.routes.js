@@ -42,13 +42,23 @@ router.put('/company', auth, checkPermission('settings.company.update'), async (
 
 router.get('/coa', auth, async (req, res) => {
   const { page, limit, offset, search, sort, order } = getPagination(req.query);
-  const { clause, params } = buildSearchWhere(['code', 'name'], search);
+  const { clause, params } = buildSearchWhere(['coa.code', 'coa.name'], search);
   const [[{ total }]] = await pool.query(
-    `SELECT COUNT(*) AS total FROM chart_of_accounts WHERE company_id = ? AND deleted_at IS NULL${clause}`,
+    `SELECT COUNT(*) AS total FROM chart_of_accounts coa WHERE coa.company_id = ? AND coa.deleted_at IS NULL${clause}`,
     [req.user.company_id, ...params]
   );
   const [rows] = await pool.query(
-    `SELECT * FROM chart_of_accounts WHERE company_id = ? AND deleted_at IS NULL${clause} ORDER BY ${sort} ${order} LIMIT ? OFFSET ?`,
+    `SELECT coa.*,
+      CASE
+        WHEN coa.normal_balance = 'debit' THEN COALESCE(SUM(jel.debit), 0) - COALESCE(SUM(jel.credit), 0)
+        ELSE COALESCE(SUM(jel.credit), 0) - COALESCE(SUM(jel.debit), 0)
+      END AS balance
+     FROM chart_of_accounts coa
+     LEFT JOIN journal_entry_lines jel ON jel.coa_id = coa.id
+     LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id AND je.status = 'posted'
+     WHERE coa.company_id = ? AND coa.deleted_at IS NULL${clause}
+     GROUP BY coa.id
+     ORDER BY coa.${sort} ${order} LIMIT ? OFFSET ?`,
     [req.user.company_id, ...params, limit, offset]
   );
   return paginated(res, rows, { page, limit, total, totalPages: Math.ceil(total / limit) });
